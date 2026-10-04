@@ -12,8 +12,8 @@ locations, prompts for selection, and permanently deletes confirmed items.
 The executable will parse its name, version, and help with Clap, then run the
 interactive menu. Cache scans will inspect platform cache roots and return
 direct children at or above 512 MiB. Large-item scans will prompt for a root
-(defaulting to `~/Documents`) and return files or directories at or above 1
-GiB. Results will be sorted largest first, summarized, selected through a
+(defaulting to the user's home directory) and return files or directories at
+or above 1 GiB. Results will be sorted largest first, summarized, selected through a
 Dialoguer checkbox list capped at 15 visible items, and permanently removed
 only after a negative-by-default confirmation. During a scan, the active path
 will update on one terminal line.

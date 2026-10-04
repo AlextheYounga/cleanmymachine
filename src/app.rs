@@ -95,10 +95,7 @@ fn scan_large_items(root: &Path) -> Vec<Item> {
 }
 
 fn default_scan_directory() -> String {
-    env::var_os(HOME_ENVIRONMENT_VARIABLE)
-        .map_or_else(|| PathBuf::from("."), |home| PathBuf::from(home).join("Documents"))
-        .display()
-        .to_string()
+    env::var_os(HOME_ENVIRONMENT_VARIABLE).map_or_else(|| PathBuf::from("."), PathBuf::from).display().to_string()
 }
 
 fn clean_items(items: &[Item], theme: &ColorfulTheme) -> Result<(), Box<dyn Error>> {

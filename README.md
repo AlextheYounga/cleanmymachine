@@ -20,8 +20,8 @@ The menu provides two scans:
 - **Cache files**: scans direct children of common macOS cache and log roots,
   or the Linux XDG cache directory (`$XDG_CACHE_HOME` or `~/.cache`). Items at
   least 512 MiB are reported.
-- **Large files**: recursively scans a directory you choose, defaulting to
-  `~/Documents`. Files and directories at least 1 GiB are reported.
+- **Large files**: recursively scans a directory you choose, defaulting to your
+  home directory. Files and directories at least 1 GiB are reported.
 
 Results are ordered largest first. While scanning, the active path is shown on
 one updating terminal line. The scanner does not follow symbolic links and
