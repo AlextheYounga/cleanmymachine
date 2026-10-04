@@ -7,9 +7,11 @@ use std::{
     env,
     error::Error,
     path::{Path, PathBuf},
+    process,
 };
 
 use clap::Parser;
+use console::Term;
 use dialoguer::{Input, Select, theme::ColorfulTheme};
 
 use self::{
@@ -22,6 +24,7 @@ use crate::scanner::{self, CACHE_THRESHOLD, HOME_ENVIRONMENT_VARIABLE, Item, LAR
 struct Cli;
 
 pub fn run() -> Result<(), Box<dyn Error>> {
+    install_interrupt_handler()?;
     Cli::parse();
     println!("\nCleanMyMachine\n");
 
@@ -33,6 +36,15 @@ pub fn run() -> Result<(), Box<dyn Error>> {
             Action::Exit => return Ok(()),
         }
     }
+}
+
+fn install_interrupt_handler() -> Result<(), ctrlc::Error> {
+    ctrlc::set_handler(|| {
+        let terminal = Term::stderr();
+        let _ = terminal.show_cursor();
+        let _ = terminal.flush();
+        process::exit(130);
+    })
 }
 
 enum Action {
