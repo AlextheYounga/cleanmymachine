@@ -13,10 +13,10 @@ The executable will parse its name, version, and help with Clap, then run the
 interactive menu. Cache scans will inspect platform cache roots and return
 direct children at or above 512 MiB. Large-item scans will prompt for a root
 (defaulting to `~/Documents`) and return files or directories at or above 1
-GiB. Results will be sorted largest first, summarized in a stable numbered
-list, selected through a Dialoguer comma-separated number prompt, and
-permanently removed only after a negative-by-default confirmation. During a
-scan, the active path will update on one terminal line.
+GiB. Results will be sorted largest first, summarized, selected through a
+Dialoguer checkbox list capped at 15 visible items, and permanently removed
+only after a negative-by-default confirmation. During a scan, the active path
+will update on one terminal line.
 
 ## Approach
 
@@ -37,7 +37,7 @@ path separately.
 
 `src/main.rs` owns only process startup. `src/app.rs` owns Clap setup and the
 interactive menu. Its focused child modules own deletion, presentation,
-progress rendering, and numbered selection. `src/scanner.rs` owns filesystem
+progress rendering, and paged checkbox selection. `src/scanner.rs` owns filesystem
 discovery, size calculation, platform cache-root selection, and the `Item` data
 type. `tests/scanner.rs` owns filesystem scanner coverage.
 
@@ -57,9 +57,9 @@ GiB binary thresholds to match the reference behavior. Limit each scan to 1,000
 reported items as in the reference CLI. Use the Linux XDG user cache directory
 because it is the standard writable cache location and does not require
 privileges. Do not scan `/var/cache` because it normally requires elevated
-access and raises the risk of removing system-managed data. Use a static
-numbered list rather than Dialoguer's redrawing multi-select to avoid terminal
-flicker during selection.
+access and raises the risk of removing system-managed data. Limit Dialoguer's
+checkbox list to 15 visible items so navigation redraws only a small terminal
+region.
 
 ## Risks
 

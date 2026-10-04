@@ -6,10 +6,6 @@ pub(super) fn display_items(items: &[Item]) {
         println!("  {:>10}  {:<9} {}", format_size(item.size), item_type(item), item.path.display());
     }
     println!("\nTotal size: {}", format_size(items.iter().map(|item| item.size).sum()));
-    println!("\nAvailable items:");
-    for (index, item) in items.iter().enumerate() {
-        println!("  {:>4}. {}", index + 1, item_label(item));
-    }
     println!();
 }
 

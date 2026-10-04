@@ -6,8 +6,7 @@
   progress, and selection modules.
 - [x] Move scanner behavior behind the library boundary and scanner coverage
   into an integration test.
-- [x] Replace the redrawing multi-select with validated, comma-separated
-  numbered selection.
+- [x] Restore Dialoguer's checkbox multi-select with a 15-item visible page.
 - [x] Pass scan progress callbacks through filesystem traversal and render the
   active path on one throttled terminal line.
 - [x] Configure Clap derive support and introduce the platform-aware scanner
@@ -22,8 +21,7 @@
 
 - [x] Run `cargo fmt --check`, `cargo clippy --all-targets --all-features`,
   and `cargo test` after moving module boundaries.
-- [x] Verify scanner progress callbacks and numbered-selection parsing with
-  unit tests.
+- [x] Verify scanner progress callbacks with unit tests.
 - [ ] Manually verify that scan status is updated in place and selection leaves
   the displayed results stable.
 - [x] Run `cargo fmt --check` without formatting differences.

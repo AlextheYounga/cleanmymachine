@@ -27,8 +27,8 @@ Results are ordered largest first. While scanning, the active path is shown on
 one updating terminal line. The scanner does not follow symbolic links and
 silently skips inaccessible paths.
 
-Enter comma-separated item numbers to select results for deletion, such as
-`1, 3, 5`. The result list remains visible while you enter your selection.
+Use the paged checkbox list to select results for deletion. The list displays
+15 items at a time to keep terminal redraws small and responsive.
 
 ## Safety
 

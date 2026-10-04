@@ -34,10 +34,9 @@ reported items are sorted by size.
 
 The CLI will provide a menu for cache scanning, large-item scanning, and exit.
 It will discover macOS cache roots equivalent to the JavaScript CLI and Linux
-user cache roots using the XDG cache directory. It will display a summary and
-stable numbered result list, accept selected item numbers through Dialoguer,
-show the path currently being scanned, and report deletion successes and
-failures.
+user cache roots using the XDG cache directory. It will display a summary,
+offer results in a 15-row paged Dialoguer checkbox list, show the path currently
+being scanned, and report deletion successes and failures.
 
 ## Constraints
 
