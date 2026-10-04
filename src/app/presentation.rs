@@ -9,6 +9,14 @@ pub(super) fn display_items(items: &[Item]) {
     println!();
 }
 
+pub(super) fn display_selected_items(items: &[Item]) {
+    println!("Selected items:");
+    for item in items {
+        println!("  {}", item_label(item));
+    }
+    println!("\nEstimated storage to clear: {}\n", format_size(items.iter().map(|item| item.size).sum()));
+}
+
 pub(super) fn item_label(item: &Item) -> String {
     format!("{}  {}  ({})", format_size(item.size), item.path.display(), item_type(item))
 }

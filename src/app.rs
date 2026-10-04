@@ -15,7 +15,10 @@ use console::Term;
 use dialoguer::{Input, Select, theme::ColorfulTheme};
 
 use self::{
-    deletion::delete_items, presentation::display_items, progress::ScanProgress, selection::prompt_for_selection,
+    deletion::delete_items,
+    presentation::{display_items, display_selected_items},
+    progress::ScanProgress,
+    selection::prompt_for_selection,
 };
 use crate::scanner::{self, CACHE_THRESHOLD, HOME_ENVIRONMENT_VARIABLE, Item, LARGE_ITEM_THRESHOLD, RESULT_LIMIT};
 
@@ -111,5 +114,6 @@ fn clean_items(items: &[Item], theme: &ColorfulTheme) -> Result<(), Box<dyn Erro
         return Ok(());
     }
 
+    display_selected_items(&selected_items);
     delete_items(&selected_items, theme)
 }

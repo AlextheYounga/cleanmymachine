@@ -23,6 +23,7 @@ pub(super) fn prompt_for_selection(items: &[Item], theme: &ColorfulTheme) -> Res
         .with_prompt("Select files or folders to delete")
         .items(labels)
         .max_length(VISIBLE_ITEM_COUNT)
+        .report(false)
         .interact_on(&terminal)?;
 
     Ok(selected.into_iter().map(|index| items[index].clone()).collect())
