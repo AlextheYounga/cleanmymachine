@@ -24,7 +24,9 @@ Replace the greeting entry point with focused modules for item discovery and
 terminal interaction. The scanner will use standard-library filesystem APIs
 and `symlink_metadata` to avoid following symbolic links. Recursive size
 calculation will skip inaccessible descendants, treat symlinks as zero size,
-and accumulate regular-file lengths. Traversal will stop below a qualifying
+and accumulate allocated regular-file storage while deduplicating hard links.
+Common top-level home containers will be traversed rather than offered for
+deletion. Traversal will stop below any other qualifying
 directory so users never receive overlapping deletion choices. Platform cache
 roots will be selected with conditional compilation: the macOS roots from the
 reference CLI and the XDG cache directory on Linux. Tests will use temporary

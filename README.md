@@ -23,9 +23,17 @@ The menu provides two scans:
 - **Large files**: recursively scans a directory you choose, defaulting to your
   home directory. Files and directories at least 1 GiB are reported.
 
+Common home containers such as `Work`, `Documents`, `Downloads`, and `Videos`
+are traversed but are not offered as deletion candidates themselves. This
+allows large content inside them, including project dependency and build
+directories such as `node_modules` and `target`, to be discovered without
+offering their project ancestors for deletion.
+
 Results are ordered largest first. While scanning, the active path is shown on
 one updating terminal line. The scanner does not follow symbolic links and
 silently skips inaccessible paths.
+On macOS and Linux, displayed sizes use allocated disk space rather than sparse
+files' virtual capacity, and hard-linked files are counted once per directory.
 
 Use the paged checkbox list to select results for deletion. The list displays
 15 items at a time to keep terminal redraws small and responsive.
