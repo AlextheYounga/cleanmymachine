@@ -28,7 +28,7 @@ fn item_type(item: &Item) -> &str {
     "file"
 }
 
-fn format_size(size: u64) -> String {
+pub(super) fn format_size(size: u64) -> String {
     const UNITS: [&str; 5] = ["B", "KiB", "MiB", "GiB", "TiB"];
     let mut value = size as f64;
     let mut unit = 0;

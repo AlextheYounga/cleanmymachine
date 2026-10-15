@@ -12,16 +12,23 @@ cargo install --path .
 ## Usage
 
 ```bash
-cleanmymachine
+cleanmymachine scan
 ```
 
-The menu provides two scans:
+The scan prompts for a directory (defaulting to the home directory), scans
+cache locations and that directory, then presents three categories with their
+combined storage sizes:
 
 - **Cache files**: scans direct children of common macOS cache and log roots,
   or the Linux XDG cache directory (`$XDG_CACHE_HOME` or `~/.cache`). Items at
   least 512 MiB are reported.
-- **Large files**: recursively scans a directory you choose, defaulting to your
-  home directory. Files and directories at least 1 GiB are reported.
+- **Large files**: files at least 1 GiB found while recursively scanning the
+  chosen directory.
+- **Large directories**: directories at least 1 GiB found while recursively
+  scanning the chosen directory.
+
+Selecting a category opens the paged checkbox list for that category. The
+category list remains available until you choose Exit.
 
 Common home containers such as `Work`, `Documents`, `Downloads`, and `Videos`
 are traversed but are not offered as deletion candidates themselves. This
