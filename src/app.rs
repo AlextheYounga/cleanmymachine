@@ -4,10 +4,12 @@ mod progress;
 mod selection;
 
 use std::{
+    any::Any,
     env,
     error::Error,
+    io,
     path::{Path, PathBuf},
-    process,
+    process, thread,
 };
 
 use clap::{Parser, Subcommand};
@@ -17,7 +19,7 @@ use dialoguer::{Input, Select, theme::ColorfulTheme};
 use self::{
     deletion::delete_items,
     presentation::{display_items, display_selected_items},
-    progress::ScanProgress,
+    progress::{ScanProgress, ScanProgressDisplay},
     selection::prompt_for_selection,
 };
 use crate::scanner::{self, CACHE_THRESHOLD, HOME_ENVIRONMENT_VARIABLE, Item, LARGE_ITEM_THRESHOLD, RESULT_LIMIT};
@@ -61,21 +63,21 @@ fn select_scan_directory(theme: &ColorfulTheme) -> Result<PathBuf, dialoguer::Er
     Ok(PathBuf::from(directory))
 }
 
-fn scan_cache_items() -> Vec<Item> {
-    let mut progress = ScanProgress::new();
+fn scan_cache_items(display: ScanProgressDisplay) -> Vec<Item> {
+    let mut progress = ScanProgress::new(0, display);
     let items = scanner::scan_cache_items_with_progress(CACHE_THRESHOLD, RESULT_LIMIT, &mut |path| {
         progress.update(path);
     });
-    progress.clear();
+    progress.finish();
     items
 }
 
-fn scan_large_items(root: &Path) -> Vec<Item> {
-    let mut progress = ScanProgress::new();
+fn scan_large_items(root: &Path, index: usize, display: ScanProgressDisplay) -> Vec<Item> {
+    let mut progress = ScanProgress::new(index, display);
     let items = scanner::scan_large_items_with_progress(root, LARGE_ITEM_THRESHOLD, RESULT_LIMIT, &mut |path| {
         progress.update(path);
     });
-    progress.clear();
+    progress.finish();
     items
 }
 
@@ -100,24 +102,43 @@ impl ScanCategory {
 
 fn run_scan(theme: &ColorfulTheme) -> Result<(), Box<dyn Error>> {
     let directory = select_scan_directory(theme)?;
-    let categories = scan_categories(&directory);
+    let categories = scan_categories(&directory)?;
     select_category(&categories, theme)
 }
 
-fn scan_categories(directory: &Path) -> Vec<ScanCategory> {
-    let cache_items = scan_cache_items();
-    let large_items = scan_large_items(directory);
-    let (large_directories, large_files) = split_large_items(large_items);
+fn scan_categories(directory: &Path) -> Result<Vec<ScanCategory>, Box<dyn Error>> {
+    let display = ScanProgressDisplay::new();
+    let (cache_items, large_files, large_directories) = thread::scope(|scope| {
+        let cache_display = display.clone();
+        let files_display = display.clone();
+        let directories_display = display.clone();
+        let cache_scan = scope.spawn(|| scan_cache_items(cache_display));
+        let large_files_scan = scope.spawn(|| scan_large_files(directory, files_display));
+        let large_directories_scan = scope.spawn(|| scan_large_directories(directory, directories_display));
+        let cache_items = cache_scan.join().map_err(scanner_thread_error)?;
+        let large_files = large_files_scan.join().map_err(scanner_thread_error)?;
+        let large_directories = large_directories_scan.join().map_err(scanner_thread_error)?;
+        display.clear();
+        Ok::<_, io::Error>((cache_items, large_files, large_directories))
+    })?;
 
-    vec![
+    Ok(vec![
         ScanCategory { name: "Cache files", items: cache_items },
         ScanCategory { name: "Large files", items: large_files },
         ScanCategory { name: "Large directories", items: large_directories },
-    ]
+    ])
 }
 
-fn split_large_items(items: Vec<Item>) -> (Vec<Item>, Vec<Item>) {
-    items.into_iter().partition(|item| item.is_directory)
+fn scan_large_files(root: &Path, display: ScanProgressDisplay) -> Vec<Item> {
+    scan_large_items(root, 1, display).into_iter().filter(|item| !item.is_directory).collect()
+}
+
+fn scan_large_directories(root: &Path, display: ScanProgressDisplay) -> Vec<Item> {
+    scan_large_items(root, 2, display).into_iter().filter(|item| item.is_directory).collect()
+}
+
+fn scanner_thread_error(_: Box<dyn Any + Send>) -> io::Error {
+    io::Error::from(io::ErrorKind::BrokenPipe)
 }
 
 fn select_category(categories: &[ScanCategory], theme: &ColorfulTheme) -> Result<(), Box<dyn Error>> {
@@ -146,7 +167,9 @@ fn clean_items(items: &[Item], theme: &ColorfulTheme) -> Result<(), Box<dyn Erro
     }
 
     display_items(items);
-    let selected_items = prompt_for_selection(items, theme)?;
+    let Some(selected_items) = prompt_for_selection(items, theme)? else {
+        return Ok(());
+    };
     if selected_items.is_empty() {
         println!("No items selected for deletion.");
         return Ok(());
@@ -160,19 +183,11 @@ fn clean_items(items: &[Item], theme: &ColorfulTheme) -> Result<(), Box<dyn Erro
 mod tests {
     use std::path::PathBuf;
 
-    use super::{ScanCategory, split_large_items};
+    use super::ScanCategory;
     use crate::scanner::Item;
 
     fn item(path: &str, size: u64, is_directory: bool) -> Item {
         Item { path: PathBuf::from(path), size, is_directory }
-    }
-
-    #[test]
-    fn separates_large_files_and_directories() {
-        let (directories, files) = split_large_items(vec![item("directory", 20, true), item("file", 10, false)]);
-
-        assert_eq!(directories, vec![item("directory", 20, true)]);
-        assert_eq!(files, vec![item("file", 10, false)]);
     }
 
     #[test]

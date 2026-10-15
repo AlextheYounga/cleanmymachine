@@ -15,16 +15,19 @@ impl Drop for CursorRestorer<'_> {
     }
 }
 
-pub(super) fn prompt_for_selection(items: &[Item], theme: &ColorfulTheme) -> Result<Vec<Item>, dialoguer::Error> {
+pub(super) fn prompt_for_selection(
+    items: &[Item],
+    theme: &ColorfulTheme,
+) -> Result<Option<Vec<Item>>, dialoguer::Error> {
     let labels = items.iter().map(item_label);
     let terminal = Term::stderr();
     let _cursor_restorer = CursorRestorer(&terminal);
     let selected = MultiSelect::with_theme(theme)
-        .with_prompt("Select files or folders to delete")
+        .with_prompt("Select files or folders to delete (Esc to go back)")
         .items(labels)
         .max_length(VISIBLE_ITEM_COUNT)
         .report(false)
-        .interact_on(&terminal)?;
+        .interact_on_opt(&terminal)?;
 
-    Ok(selected.into_iter().map(|index| items[index].clone()).collect())
+    Ok(selected.map(|indices| indices.into_iter().map(|index| items[index].clone()).collect()))
 }

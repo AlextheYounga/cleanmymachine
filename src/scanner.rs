@@ -14,8 +14,28 @@ pub const HOME_ENVIRONMENT_VARIABLE: &str = "HOME";
 pub const LARGE_ITEM_THRESHOLD: u64 = 1024 * 1024 * 1024;
 pub const RESULT_LIMIT: usize = 1_000;
 
-const HOME_CONTAINER_DIRECTORIES: [&str; 9] =
-    ["Desktop", "Documents", "Downloads", "Music", "Pictures", "Public", "Templates", "Videos", "Work"];
+const HOME_CONTAINER_DIRECTORIES: [&str; 20] = [
+    "Desktop",
+    "Documents",
+    "Downloads",
+    "Music",
+    "Pictures",
+    "Public",
+    "Templates",
+    "Videos",
+    "Work",
+    ".cache",
+    ".cargo",
+    ".config",
+    ".docker",
+    ".local",
+    ".npm",
+    ".ollama",
+    ".rustup",
+    ".vscode",
+    ".vscode-server",
+    ".windows",
+];
 const CLEANUP_DIRECTORIES: [&str; 2] = ["node_modules", "target"];
 
 #[derive(Clone, Debug, Eq, PartialEq)]

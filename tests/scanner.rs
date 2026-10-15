@@ -153,3 +153,19 @@ fn traverses_home_containers_instead_of_reporting_them() -> Result<(), Box<dyn E
     assert_eq!(items[0].path, dependencies);
     Ok(())
 }
+
+#[test]
+fn traverses_common_hidden_home_directories_instead_of_reporting_them() -> Result<(), Box<dyn Error>> {
+    let directory = TestDirectory::new()?;
+    let config = directory.path().join(".config");
+    fs::create_dir(&config)?;
+    let application = config.join("application");
+    fs::create_dir(&application)?;
+    create_file(&application.join("settings"), 2 * 1024 * 1024)?;
+
+    let items = scan(directory.path(), 1024 * 1024);
+
+    assert_eq!(items.len(), 1);
+    assert_eq!(items[0].path, application.join("settings"));
+    Ok(())
+}
