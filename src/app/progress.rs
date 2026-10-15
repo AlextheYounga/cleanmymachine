@@ -5,7 +5,7 @@ use std::{
     time::{Duration, Instant},
 };
 
-const SCANNER_COUNT: usize = 3;
+const SCANNER_COUNT: usize = 4;
 
 #[derive(Clone)]
 pub(super) struct ScanProgressDisplay {
@@ -22,8 +22,8 @@ impl ScanProgressDisplay {
     pub(super) fn new() -> Self {
         Self {
             state: Arc::new(Mutex::new(DisplayState {
-                paths: [None, None, None],
-                completed: [false, false, false],
+                paths: [None, None, None, None],
+                completed: [false, false, false, false],
                 rendered: false,
             })),
         }
@@ -70,6 +70,34 @@ pub(super) struct ScanProgress {
     display: ScanProgressDisplay,
 }
 
+pub(super) struct SingleLineScanProgress {
+    last_rendered: Option<Instant>,
+    label: &'static str,
+}
+
+impl SingleLineScanProgress {
+    pub(super) fn new(label: &'static str) -> Self {
+        Self { last_rendered: None, label }
+    }
+
+    pub(super) fn update(&mut self, path: &Path) {
+        if self.last_rendered.is_some_and(|last| last.elapsed() < Duration::from_millis(80)) {
+            return;
+        }
+        self.last_rendered = Some(Instant::now());
+        eprint!("\r\x1b[2KScanning {}: {}", self.label, abbreviated_path(path));
+        let _ = io::stderr().flush();
+    }
+
+    pub(super) fn clear(&self) {
+        if self.last_rendered.is_none() {
+            return;
+        }
+        eprint!("\r\x1b[2K");
+        let _ = io::stderr().flush();
+    }
+}
+
 impl ScanProgress {
     pub(super) fn new(index: usize, display: ScanProgressDisplay) -> Self {
         Self { last_rendered: None, index, display }
@@ -100,7 +128,8 @@ fn render(state: &mut DisplayState) {
         let line_label = match line_index {
             0 => "Cache files",
             1 => "Large files",
-            _ => "Large directories",
+            2 => "Large directories",
+            _ => "Docker storage",
         };
         let status = if state.completed[line_index] {
             "Done".to_string()

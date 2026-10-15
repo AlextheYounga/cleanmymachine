@@ -1,4 +1,6 @@
 mod deletion;
+mod dev_scan;
+mod docker;
 mod presentation;
 mod progress;
 mod selection;
@@ -35,6 +37,8 @@ struct Cli {
 enum Command {
     /// Scan cache locations and a directory for cleanup candidates.
     Scan,
+    /// Find development build and dependency directories inside Git projects.
+    DevScan,
 }
 
 pub fn run() -> Result<(), Box<dyn Error>> {
@@ -44,8 +48,14 @@ pub fn run() -> Result<(), Box<dyn Error>> {
 
     match cli.command {
         Command::Scan => run_scan(&ColorfulTheme::default())?,
+        Command::DevScan => run_dev_scan(&ColorfulTheme::default())?,
     }
     Ok(())
+}
+
+fn run_dev_scan(theme: &ColorfulTheme) -> Result<(), Box<dyn Error>> {
+    let directory = select_scan_directory(theme)?;
+    dev_scan::run(&directory, theme)
 }
 
 fn install_interrupt_handler() -> Result<(), ctrlc::Error> {
@@ -90,6 +100,11 @@ struct ScanCategory {
     items: Vec<Item>,
 }
 
+enum ScanOption {
+    Files(ScanCategory),
+    Docker(docker::DockerCleanup),
+}
+
 impl ScanCategory {
     fn total_size(&self) -> u64 {
         self.items.iter().map(|item| item.size).sum()
@@ -106,27 +121,34 @@ fn run_scan(theme: &ColorfulTheme) -> Result<(), Box<dyn Error>> {
     select_category(&categories, theme)
 }
 
-fn scan_categories(directory: &Path) -> Result<Vec<ScanCategory>, Box<dyn Error>> {
+fn scan_categories(directory: &Path) -> Result<Vec<ScanOption>, Box<dyn Error>> {
     let display = ScanProgressDisplay::new();
-    let (cache_items, large_files, large_directories) = thread::scope(|scope| {
+    let (cache_items, large_files, large_directories, docker_cleanup) = thread::scope(|scope| {
         let cache_display = display.clone();
         let files_display = display.clone();
         let directories_display = display.clone();
+        let docker_display = display.clone();
         let cache_scan = scope.spawn(|| scan_cache_items(cache_display));
         let large_files_scan = scope.spawn(|| scan_large_files(directory, files_display));
         let large_directories_scan = scope.spawn(|| scan_large_directories(directory, directories_display));
+        let docker_scan = scope.spawn(|| docker::scan(docker_display));
         let cache_items = cache_scan.join().map_err(scanner_thread_error)?;
         let large_files = large_files_scan.join().map_err(scanner_thread_error)?;
         let large_directories = large_directories_scan.join().map_err(scanner_thread_error)?;
+        let docker_cleanup = docker_scan.join().map_err(scanner_thread_error)??;
         display.clear();
-        Ok::<_, io::Error>((cache_items, large_files, large_directories))
+        Ok::<_, io::Error>((cache_items, large_files, large_directories, docker_cleanup))
     })?;
 
-    Ok(vec![
-        ScanCategory { name: "Cache files", items: cache_items },
-        ScanCategory { name: "Large files", items: large_files },
-        ScanCategory { name: "Large directories", items: large_directories },
-    ])
+    let mut options = vec![
+        ScanOption::Files(ScanCategory { name: "Cache files", items: cache_items }),
+        ScanOption::Files(ScanCategory { name: "Large files", items: large_files }),
+        ScanOption::Files(ScanCategory { name: "Large directories", items: large_directories }),
+    ];
+    if let Some(docker_cleanup) = docker_cleanup {
+        options.push(ScanOption::Docker(docker_cleanup));
+    }
+    Ok(options)
 }
 
 fn scan_large_files(root: &Path, display: ScanProgressDisplay) -> Vec<Item> {
@@ -141,9 +163,9 @@ fn scanner_thread_error(_: Box<dyn Any + Send>) -> io::Error {
     io::Error::from(io::ErrorKind::BrokenPipe)
 }
 
-fn select_category(categories: &[ScanCategory], theme: &ColorfulTheme) -> Result<(), Box<dyn Error>> {
+fn select_category(categories: &[ScanOption], theme: &ColorfulTheme) -> Result<(), Box<dyn Error>> {
     loop {
-        let labels: Vec<String> = categories.iter().map(ScanCategory::label).collect();
+        let labels: Vec<String> = categories.iter().map(ScanOption::label).collect();
         let mut options = labels;
         options.push(String::from("Exit"));
         let selected = Select::with_theme(theme)
@@ -156,8 +178,38 @@ fn select_category(categories: &[ScanCategory], theme: &ColorfulTheme) -> Result
             return Ok(());
         }
 
-        clean_items(&categories[selected].items, theme)?;
+        match &categories[selected] {
+            ScanOption::Files(category) => clean_items(&category.items, theme)?,
+            ScanOption::Docker(cleanup) => clean_docker(cleanup, theme)?,
+        }
     }
+}
+
+impl ScanOption {
+    fn label(&self) -> String {
+        match self {
+            Self::Files(category) => category.label(),
+            Self::Docker(cleanup) => {
+                format!("Docker storage ({})", presentation::format_size(cleanup.reclaimable_size))
+            }
+        }
+    }
+}
+
+fn clean_docker(cleanup: &docker::DockerCleanup, theme: &ColorfulTheme) -> Result<(), Box<dyn Error>> {
+    let confirmed = dialoguer::Confirm::with_theme(theme)
+        .with_prompt(format!(
+            "Prune Docker storage (up to {} reclaimable)?",
+            presentation::format_size(cleanup.reclaimable_size)
+        ))
+        .default(false)
+        .interact()?;
+    if !confirmed {
+        return Ok(());
+    }
+    docker::prune()?;
+    println!("Docker storage cleanup complete.");
+    Ok(())
 }
 
 fn clean_items(items: &[Item], theme: &ColorfulTheme) -> Result<(), Box<dyn Error>> {
@@ -183,7 +235,7 @@ fn clean_items(items: &[Item], theme: &ColorfulTheme) -> Result<(), Box<dyn Erro
 mod tests {
     use std::path::PathBuf;
 
-    use super::ScanCategory;
+    use super::{ScanCategory, ScanOption};
     use crate::scanner::Item;
 
     fn item(path: &str, size: u64, is_directory: bool) -> Item {
@@ -196,5 +248,12 @@ mod tests {
             ScanCategory { name: "Large files", items: vec![item("first", 1024, false), item("second", 1024, false)] };
 
         assert_eq!(category.label(), "Large files (2.0 KiB)");
+    }
+
+    #[test]
+    fn labels_docker_cleanup_with_reclaimable_size() {
+        let option = ScanOption::Docker(super::docker::DockerCleanup { reclaimable_size: 2 * 1024 * 1024 });
+
+        assert_eq!(option.label(), "Docker storage (2.0 MiB)");
     }
 }

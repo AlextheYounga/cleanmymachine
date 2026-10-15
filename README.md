@@ -15,6 +15,11 @@ cargo install --path .
 cleanmymachine scan
 ```
 
+Use `cleanmymachine dev-scan` to find `target`, `node_modules`, and `.venv`
+folders inside Git projects under a selected directory. It lists every folder,
+shows the combined storage total, and asks for confirmation before deleting
+them.
+
 The scan prompts for a directory (defaulting to the home directory), scans
 cache locations and that directory, then presents three categories with their
 combined storage sizes:
@@ -26,9 +31,16 @@ combined storage sizes:
   chosen directory.
 - **Large directories**: directories at least 1 GiB found while recursively
   scanning the chosen directory.
+- **Docker storage**: Docker-reported reclaimable storage, excluding volumes.
+  Selecting this category runs Docker's default safe prune operations for
+  stopped containers, dangling images, unused networks, and build cache.
 
 Selecting a category opens the paged checkbox list for that category. The
 category list remains available until you choose Exit.
+
+Docker cleanup requires the Docker CLI and a running Docker daemon. The CLI
+does not use Docker's `--all` options, prune volumes, or delete Docker storage
+files directly.
 
 Common home containers such as `Work`, `Documents`, `Downloads`, and `Videos`
 are traversed but are not offered as deletion candidates themselves. This

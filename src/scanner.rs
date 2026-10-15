@@ -36,7 +36,22 @@ const HOME_CONTAINER_DIRECTORIES: [&str; 20] = [
     ".vscode-server",
     ".windows",
 ];
-const CLEANUP_DIRECTORIES: [&str; 2] = ["node_modules", "target"];
+pub const DEVELOPMENT_CLEANUP_DIRECTORIES: [&str; 14] = [
+    "target",
+    "node_modules",
+    ".venv",
+    "__pycache__",
+    ".pytest_cache",
+    ".mypy_cache",
+    ".ruff_cache",
+    ".next",
+    ".nuxt",
+    ".turbo",
+    ".parcel-cache",
+    ".gradle",
+    ".build",
+    ".cxx",
+];
 
 #[derive(Clone, Debug, Eq, PartialEq)]
 pub struct Item {
@@ -269,7 +284,7 @@ fn is_home_container_directory(path: &Path) -> bool {
 }
 
 fn is_cleanup_directory(path: &Path) -> bool {
-    path.file_name().and_then(|name| name.to_str()).is_some_and(|name| CLEANUP_DIRECTORIES.contains(&name))
+    path.file_name().and_then(|name| name.to_str()).is_some_and(|name| DEVELOPMENT_CLEANUP_DIRECTORIES.contains(&name))
 }
 
 #[cfg(unix)]
