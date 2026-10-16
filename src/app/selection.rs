@@ -1,6 +1,6 @@
 use std::path::{Path, PathBuf};
 
-use console::{Key, Term};
+use console::{Key, Term, truncate_str};
 use dialoguer::theme::ColorfulTheme;
 
 use super::presentation::item_label;
@@ -54,7 +54,7 @@ impl SelectionSession<'_> {
                         toggle_selected(item, &mut self.selected);
                     }
                 }
-                Key::ArrowRight => open_current_directory(&mut directories),
+                Key::ArrowRight | Key::Enter => open_current_directory(&mut directories),
                 Key::ArrowLeft | Key::Escape => {
                     if directories.len() == 1 {
                         self.clear()?;
@@ -62,12 +62,7 @@ impl SelectionSession<'_> {
                     }
                     directories.pop();
                 }
-                Key::Enter => {
-                    if directories.len() == 1 {
-                        return Ok(true);
-                    }
-                    open_current_directory(&mut directories);
-                }
+                Key::Char('c' | 'C') => return Ok(true),
                 _ => {}
             }
         }
@@ -78,7 +73,7 @@ impl SelectionSession<'_> {
         let location =
             view.path.as_ref().map_or_else(|| String::from("scan results"), |path| path.display().to_string());
         self.write_line(&format!("Select items to delete: {location}"))?;
-        self.write_line("Arrows: move/open/back  Space: select  Enter: continue  Esc: cancel/back")?;
+        self.write_line("Up/down: move  Right/Enter: open  Left/Esc: back  Space: select  C: continue")?;
 
         let start = view.cursor.saturating_sub(VISIBLE_ITEM_COUNT - 1);
         for (index, item) in view.items.iter().enumerate().skip(start).take(VISIBLE_ITEM_COUNT) {
@@ -98,7 +93,9 @@ impl SelectionSession<'_> {
     }
 
     fn write_line(&mut self, text: &str) -> Result<(), dialoguer::Error> {
-        self.terminal.write_line(text)?;
+        let (_, columns) = self.terminal.size();
+        let width = usize::from(columns).saturating_sub(1);
+        self.terminal.write_line(&truncate_str(text, width, "..."))?;
         self.rendered_lines += 1;
         Ok(())
     }

@@ -3,6 +3,7 @@ mod dev_scan;
 mod docker;
 mod presentation;
 mod progress;
+mod scan_cache;
 mod selection;
 
 use std::{
@@ -122,24 +123,41 @@ fn run_scan(theme: &ColorfulTheme) -> Result<(), Box<dyn Error>> {
 }
 
 fn scan_categories(directory: &Path) -> Result<Vec<ScanOption>, Box<dyn Error>> {
+    if let Some(results) = scan_cache::load(directory) {
+        println!("Using scan results cached less than one hour ago.");
+        let display = ScanProgressDisplay::new();
+        let docker_cleanup = docker::scan(display.clone())?;
+        display.clear();
+        return Ok(scan_options(results.cache_items, results.large_files, results.large_directories, docker_cleanup));
+    }
+
     let display = ScanProgressDisplay::new();
-    let (cache_items, large_files, large_directories, docker_cleanup) = thread::scope(|scope| {
+    let (cache_items, large_items, docker_cleanup) = thread::scope(|scope| {
         let cache_display = display.clone();
-        let files_display = display.clone();
-        let directories_display = display.clone();
+        let large_items_display = display.clone();
         let docker_display = display.clone();
         let cache_scan = scope.spawn(|| scan_cache_items(cache_display));
-        let large_files_scan = scope.spawn(|| scan_large_files(directory, files_display));
-        let large_directories_scan = scope.spawn(|| scan_large_directories(directory, directories_display));
+        let large_items_scan = scope.spawn(|| scan_large_items(directory, 1, large_items_display));
         let docker_scan = scope.spawn(|| docker::scan(docker_display));
         let cache_items = cache_scan.join().map_err(scanner_thread_error)?;
-        let large_files = large_files_scan.join().map_err(scanner_thread_error)?;
-        let large_directories = large_directories_scan.join().map_err(scanner_thread_error)?;
+        let large_items = large_items_scan.join().map_err(scanner_thread_error)?;
         let docker_cleanup = docker_scan.join().map_err(scanner_thread_error)??;
         display.clear();
-        Ok::<_, io::Error>((cache_items, large_files, large_directories, docker_cleanup))
+        Ok::<_, io::Error>((cache_items, large_items, docker_cleanup))
     })?;
+    let (large_directories, large_files): (Vec<_>, Vec<_>) =
+        large_items.into_iter().partition(|item| item.is_directory);
 
+    scan_cache::store(directory, cache_items.clone(), large_files.clone(), large_directories.clone());
+    Ok(scan_options(cache_items, large_files, large_directories, docker_cleanup))
+}
+
+fn scan_options(
+    cache_items: Vec<Item>,
+    large_files: Vec<Item>,
+    large_directories: Vec<Item>,
+    docker_cleanup: Option<docker::DockerCleanup>,
+) -> Vec<ScanOption> {
     let mut options = vec![
         ScanOption::Files(ScanCategory { name: "Cache files", items: cache_items }),
         ScanOption::Files(ScanCategory { name: "Large files", items: large_files }),
@@ -148,15 +166,7 @@ fn scan_categories(directory: &Path) -> Result<Vec<ScanOption>, Box<dyn Error>> 
     if let Some(docker_cleanup) = docker_cleanup {
         options.push(ScanOption::Docker(docker_cleanup));
     }
-    Ok(options)
-}
-
-fn scan_large_files(root: &Path, display: ScanProgressDisplay) -> Vec<Item> {
-    scan_large_items(root, 1, display).into_iter().filter(|item| !item.is_directory).collect()
-}
-
-fn scan_large_directories(root: &Path, display: ScanProgressDisplay) -> Vec<Item> {
-    scan_large_items(root, 2, display).into_iter().filter(|item| item.is_directory).collect()
+    options
 }
 
 fn scanner_thread_error(_: Box<dyn Any + Send>) -> io::Error {
@@ -228,7 +238,10 @@ fn clean_items(items: &[Item], theme: &ColorfulTheme) -> Result<(), Box<dyn Erro
     }
 
     display_selected_items(&selected_items);
-    delete_items(&selected_items, theme)
+    if delete_items(&selected_items, theme)? > 0 {
+        scan_cache::clear();
+    }
+    Ok(())
 }
 
 #[cfg(test)]

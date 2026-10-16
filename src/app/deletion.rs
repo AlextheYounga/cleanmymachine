@@ -4,15 +4,15 @@ use dialoguer::{Confirm, theme::ColorfulTheme};
 
 use crate::scanner::Item;
 
-pub(super) fn delete_items(items: &[Item], theme: &ColorfulTheme) -> Result<(), Box<dyn Error>> {
+pub(super) fn delete_items(items: &[Item], theme: &ColorfulTheme) -> Result<usize, Box<dyn Error>> {
     if !confirm_deletion(items.len(), theme)? {
         println!("Operation cancelled.");
-        return Ok(());
+        return Ok(0);
     }
 
     let (deleted, failed) = remove_items(items);
     println!("Deleted {deleted} item(s). Failed to delete {failed} item(s).");
-    Ok(())
+    Ok(deleted)
 }
 
 fn confirm_deletion(item_count: usize, theme: &ColorfulTheme) -> Result<bool, dialoguer::Error> {

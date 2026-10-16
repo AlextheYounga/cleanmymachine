@@ -63,7 +63,7 @@ fn reports_large_files_largest_first() -> Result<(), Box<dyn Error>> {
 }
 
 #[test]
-fn reports_a_qualifying_directory_without_its_children() -> Result<(), Box<dyn Error>> {
+fn reports_qualifying_items_nested_in_a_qualifying_directory() -> Result<(), Box<dyn Error>> {
     let directory = TestDirectory::new()?;
     let nested = directory.path().join("nested");
     fs::create_dir(&nested)?;
@@ -71,10 +71,9 @@ fn reports_a_qualifying_directory_without_its_children() -> Result<(), Box<dyn E
 
     let items = scan(directory.path(), 1024 * 1024);
 
-    assert_eq!(items.len(), 1);
-    assert_eq!(items[0].path, nested);
-    assert!(items[0].is_directory);
-    assert_eq!(items[0].size, 2 * 1024 * 1024);
+    assert_eq!(items.len(), 2);
+    assert!(items.iter().any(|item| item.path == nested && item.is_directory));
+    assert!(items.iter().any(|item| item.path == nested.join("large-file") && !item.is_directory));
     Ok(())
 }
 
@@ -134,8 +133,10 @@ fn counts_hard_linked_files_once_per_directory() -> Result<(), Box<dyn Error>> {
 
     let items = scan(directory.path(), 1024 * 1024);
 
-    assert_eq!(items.len(), 1);
-    assert_eq!(items[0].size, 2 * 1024 * 1024);
+    assert_eq!(items.len(), 2);
+    assert_eq!(items.iter().filter(|item| item.is_directory).count(), 1);
+    assert_eq!(items.iter().filter(|item| !item.is_directory).count(), 1);
+    assert!(items.iter().all(|item| item.size == 2 * 1024 * 1024));
     Ok(())
 }
 

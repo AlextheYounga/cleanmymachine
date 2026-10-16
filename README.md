@@ -54,6 +54,10 @@ silently skips inaccessible paths.
 On macOS and Linux, displayed sizes use allocated disk space rather than sparse
 files' virtual capacity, and hard-linked files are counted once per directory.
 
+Filesystem scan results are cached for one hour per selected directory to avoid
+repeating expensive scans. Successful file or folder deletions clear the cache.
+Docker storage is always queried live.
+
 Use the paged checkbox list to select results for deletion. The list displays
 15 items at a time to keep terminal redraws small and responsive.
 

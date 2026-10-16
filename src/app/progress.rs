@@ -5,7 +5,7 @@ use std::{
     time::{Duration, Instant},
 };
 
-const SCANNER_COUNT: usize = 4;
+const SCANNER_COUNT: usize = 3;
 
 #[derive(Clone)]
 pub(super) struct ScanProgressDisplay {
@@ -22,8 +22,8 @@ impl ScanProgressDisplay {
     pub(super) fn new() -> Self {
         Self {
             state: Arc::new(Mutex::new(DisplayState {
-                paths: [None, None, None, None],
-                completed: [false, false, false, false],
+                paths: [None, None, None],
+                completed: [false, false, false],
                 rendered: false,
             })),
         }
@@ -127,8 +127,7 @@ fn render(state: &mut DisplayState) {
     for (line_index, path) in state.paths.iter().enumerate() {
         let line_label = match line_index {
             0 => "Cache files",
-            1 => "Large files",
-            2 => "Large directories",
+            1 => "Large items",
             _ => "Docker storage",
         };
         let status = if state.completed[line_index] {

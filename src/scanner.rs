@@ -6,13 +6,18 @@ use std::{
     path::{Path, PathBuf},
 };
 
+use serde::{Deserialize, Serialize};
+
 #[cfg(unix)]
 use std::os::unix::fs::MetadataExt;
 
 pub const CACHE_THRESHOLD: u64 = 512 * 1024 * 1024;
+pub const DEFAULT_CACHE_DIRECTORY: &str = ".cache";
 pub const HOME_ENVIRONMENT_VARIABLE: &str = "HOME";
 pub const LARGE_ITEM_THRESHOLD: u64 = 1024 * 1024 * 1024;
+pub const MACOS_USER_CACHE_DIRECTORY: &str = "Library/Caches";
 pub const RESULT_LIMIT: usize = 1_000;
+pub const XDG_CACHE_HOME_ENVIRONMENT_VARIABLE: &str = "XDG_CACHE_HOME";
 
 const HOME_CONTAINER_DIRECTORIES: [&str; 20] = [
     "Desktop",
@@ -53,7 +58,7 @@ pub const DEVELOPMENT_CLEANUP_DIRECTORIES: [&str; 14] = [
     ".cxx",
 ];
 
-#[derive(Clone, Debug, Eq, PartialEq)]
+#[derive(Clone, Debug, Deserialize, Eq, PartialEq, Serialize)]
 pub struct Item {
     pub path: PathBuf,
     pub size: u64,
@@ -64,7 +69,7 @@ pub fn scan_cache_items_with_progress<F>(threshold: u64, limit: usize, progress:
 where
     F: FnMut(&Path),
 {
-    let mut scan = Scan { threshold, limit, items: Vec::new(), progress };
+    let mut scan = Scan { threshold, limit, items: Vec::new(), seen_item_files: HashSet::new(), progress };
 
     for root in cache_roots() {
         scan.collect_direct_children(&root);
@@ -81,7 +86,7 @@ pub fn scan_large_items_with_progress<F>(root: &Path, threshold: u64, limit: usi
 where
     F: FnMut(&Path),
 {
-    let mut scan = Scan { threshold, limit, items: Vec::new(), progress };
+    let mut scan = Scan { threshold, limit, items: Vec::new(), seen_item_files: HashSet::new(), progress };
     scan.scan_directory(root, true);
     sort_items(&mut scan.items);
     scan.items
@@ -91,7 +96,7 @@ pub fn scan_directory_children_with_progress<F>(root: &Path, limit: usize, progr
 where
     F: FnMut(&Path),
 {
-    let mut scan = Scan { threshold: 0, limit, items: Vec::new(), progress };
+    let mut scan = Scan { threshold: 0, limit, items: Vec::new(), seen_item_files: HashSet::new(), progress };
     scan.collect_direct_children(root);
     sort_items(&mut scan.items);
     scan.items
@@ -104,7 +109,8 @@ fn cache_roots() -> Vec<PathBuf> {
             return vec![PathBuf::from("/Library/Caches")];
         };
         let application_support = home.join("Library/Application Support");
-        let mut roots = vec![home.join("Library/Caches"), home.join("Library/Logs"), PathBuf::from("/Library/Caches")];
+        let mut roots =
+            vec![home.join(MACOS_USER_CACHE_DIRECTORY), home.join("Library/Logs"), PathBuf::from("/Library/Caches")];
 
         if let Ok(entries) = fs::read_dir(application_support) {
             roots.extend(entries.flatten().map(|entry| entry.path().join("Caches")));
@@ -115,10 +121,10 @@ fn cache_roots() -> Vec<PathBuf> {
 
     #[cfg(target_os = "linux")]
     {
-        env::var_os("XDG_CACHE_HOME")
+        env::var_os(XDG_CACHE_HOME_ENVIRONMENT_VARIABLE)
             .map(PathBuf::from)
             .filter(|path| path.is_absolute())
-            .or_else(|| home_directory().map(|home| home.join(".cache")))
+            .or_else(|| home_directory().map(|home| home.join(DEFAULT_CACHE_DIRECTORY)))
             .into_iter()
             .collect()
     }
@@ -140,6 +146,7 @@ where
     threshold: u64,
     limit: usize,
     items: Vec<Item>,
+    seen_item_files: HashSet<(u64, u64)>,
     progress: &'a mut F,
 }
 
@@ -186,13 +193,12 @@ where
                 }
                 let size = self.directory_size(&path);
                 if size >= self.threshold {
-                    self.items.push(Item { path, size, is_directory: true });
-                } else {
-                    self.scan_directory(&path, false);
+                    self.items.push(Item { path: path.clone(), size, is_directory: true });
                 }
+                self.scan_directory(&path, false);
             } else if metadata.is_file() {
                 let size = file_size(&metadata);
-                if size >= self.threshold {
+                if size >= self.threshold && remember_file(&metadata, &mut self.seen_item_files) {
                     self.items.push(Item { path, size, is_directory: false });
                 }
             }
@@ -229,7 +235,7 @@ where
                 self.scan_container_directory(&path);
             } else if metadata.is_file() {
                 let size = file_size(&metadata);
-                if size >= self.threshold {
+                if size >= self.threshold && remember_file(&metadata, &mut self.seen_item_files) {
                     self.items.push(Item { path, size, is_directory: false });
                 }
             }
@@ -253,7 +259,7 @@ where
             return;
         };
 
-        if size >= self.threshold {
+        if size >= self.threshold && (metadata.is_dir() || remember_file(&metadata, &mut self.seen_item_files)) {
             self.items.push(Item { path, size, is_directory: metadata.is_dir() });
         }
     }

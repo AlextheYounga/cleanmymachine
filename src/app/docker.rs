@@ -7,7 +7,7 @@ pub(super) struct DockerCleanup {
 }
 
 pub(super) fn scan(display: ScanProgressDisplay) -> io::Result<Option<DockerCleanup>> {
-    let mut progress = ScanProgress::new(3, display);
+    let mut progress = ScanProgress::new(2, display);
     progress.update(Path::new("docker system df"));
 
     let output = match Command::new("docker").args(["system", "df", "--format", "{{.Type}}\t{{.Reclaimable}}"]).output()
