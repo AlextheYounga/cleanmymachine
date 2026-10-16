@@ -87,6 +87,16 @@ where
     scan.items
 }
 
+pub fn scan_directory_children_with_progress<F>(root: &Path, limit: usize, progress: &mut F) -> Vec<Item>
+where
+    F: FnMut(&Path),
+{
+    let mut scan = Scan { threshold: 0, limit, items: Vec::new(), progress };
+    scan.collect_direct_children(root);
+    sort_items(&mut scan.items);
+    scan.items
+}
+
 fn cache_roots() -> Vec<PathBuf> {
     #[cfg(target_os = "macos")]
     {
@@ -280,7 +290,11 @@ where
 }
 
 fn is_home_container_directory(path: &Path) -> bool {
-    path.file_name().and_then(|name| name.to_str()).is_some_and(|name| HOME_CONTAINER_DIRECTORIES.contains(&name))
+    let Some(name) = path.file_name().and_then(|name| name.to_str()) else {
+        return false;
+    };
+
+    HOME_CONTAINER_DIRECTORIES.contains(&name) || cfg!(target_os = "macos") && name == "Library"
 }
 
 fn is_cleanup_directory(path: &Path) -> bool {

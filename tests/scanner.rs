@@ -8,7 +8,7 @@ use std::{
     sync::atomic::{AtomicUsize, Ordering},
 };
 
-use cleanmymachine::scanner::{Item, scan_large_items_with_progress};
+use cleanmymachine::scanner::{Item, scan_directory_children_with_progress, scan_large_items_with_progress};
 
 static NEXT_DIRECTORY: AtomicUsize = AtomicUsize::new(0);
 
@@ -167,5 +167,22 @@ fn traverses_common_hidden_home_directories_instead_of_reporting_them() -> Resul
 
     assert_eq!(items.len(), 1);
     assert_eq!(items[0].path, application.join("settings"));
+    Ok(())
+}
+
+#[test]
+fn reports_direct_children_when_browsing_a_directory() -> Result<(), Box<dyn Error>> {
+    let directory = TestDirectory::new()?;
+    let child_directory = directory.path().join("child-directory");
+    fs::create_dir(&child_directory)?;
+    create_file(&child_directory.join("file"), 2 * 1024 * 1024)?;
+    let child_file = directory.path().join("child-file");
+    create_file(&child_file, 1024 * 1024)?;
+
+    let items = scan_directory_children_with_progress(directory.path(), 10, &mut |_| {});
+
+    assert_eq!(items.len(), 2);
+    assert!(items.iter().any(|item| item.path == child_directory && item.is_directory));
+    assert!(items.iter().any(|item| item.path == child_file && !item.is_directory));
     Ok(())
 }
